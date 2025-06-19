@@ -8,23 +8,78 @@
       background: #000;
       color: #fff;
       font-family: sans-serif;
+      padding: 1em;
+      max-width: 900px;
+      margin: auto;
+    }
+    h1 {
       text-align: center;
-      padding: 2em;
+    }
+    #playerContainer {
+      text-align: center;
     }
     iframe {
-      width: 90%;
+      width: 100%;
       max-width: 720px;
       height: 405px;
       border: none;
       border-radius: 8px;
+      margin: 1em auto;
+      display: block;
+    }
+    #status {
+      text-align: center;
+      margin: 0.5em 0 1em 0;
+    }
+    #recommendedVideos {
       margin-top: 2em;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1em;
+      justify-content: center;
+    }
+    .recommended-item {
+      background: #111;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 180px;
+      padding: 0.5em;
+      box-sizing: border-box;
+      transition: background-color 0.2s;
+    }
+    .recommended-item:hover {
+      background: #222;
+    }
+    .recommended-item img {
+      width: 100%;
+      border-radius: 6px;
+    }
+    .recommended-item p {
+      margin: 0.3em 0;
+      font-size: 0.9em;
+      color: #ddd;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .recommended-item p.channel {
+      font-size: 0.8em;
+      color: #aaa;
+    }
+    .recommended-item p.length {
+      font-size: 0.75em;
+      color: #888;
     }
   </style>
 </head>
 <body>
   <h1>YouTube動画プレイヤー</h1>
-  <p id="status">動画を読み込み中...</p>
-  <iframe id="ytPlayer" allowfullscreen></iframe>
+  <div id="playerContainer">
+    <p id="status">動画を読み込み中...</p>
+    <iframe id="ytPlayer" allowfullscreen></iframe>
+  </div>
+  <h2 style="text-align:center; margin-top: 2em;">おすすめの動画</h2>
+  <div id="recommendedVideos"></div>
 
   <script>
     const params = new URLSearchParams(window.location.search);
@@ -32,34 +87,54 @@
 
     const player = document.getElementById('ytPlayer');
     const status = document.getElementById('status');
-    const storageKey = `ytpos_${videoID}`;
+    const recommendedContainer = document.getElementById('recommendedVideos');
 
     if (!videoID) {
       status.innerText = '動画IDが指定されていません。';
       player.style.display = 'none';
     } else {
-      fetch(`https://yewtu.be/api/v1/videos/${videoID}`)
+      fetch(`https://invidious.snopyta.org/api/v1/videos/${videoID}`)
         .then(res => {
           if (!res.ok) throw new Error('動画なし');
           return res.json();
         })
         .then(data => {
-          status.innerText = `動画ID: ${videoID}`;
-          const savedSeconds = localStorage.getItem(storageKey) || 0;
-          const embedURL = `https://yewtu.be/embed/${videoID}?start=${savedSeconds}`;
-          player.src = embedURL;
+          status.innerText = `${data.title} - ${data.author}`;
+          // 埋め込みURL（start=0にしてる）
+          player.src = `https://invidious.snopyta.org/embed/${videoID}?start=0`;
 
-          // 5秒ごとに再生位置を保存（簡易版）
-          setInterval(() => {
-            // ここはiframe内の再生時間は直接取得不可なのでURLパラメータで管理
-            // より高度にするならYouTube IFrame APIの導入が必要
-            const currentStart = parseInt(new URL(player.src).searchParams.get('start') || '0');
-            localStorage.setItem(storageKey, currentStart);
-          }, 5000);
+          // 類似動画リストクリア
+          recommendedContainer.innerHTML = '';
+
+          if (data.recommendedVideos && data.recommendedVideos.length > 0) {
+            data.recommendedVideos.forEach(video => {
+              const div = document.createElement('div');
+              div.className = 'recommended-item';
+              div.onclick = () => {
+                window.location.href = `player.html?=${video.videoId}`;
+              };
+              div.innerHTML = `
+                <img src="${video.videoThumbnails?.[0]?.url || ''}" alt="thumb" />
+                <p title="${video.title}">${video.title}</p>
+                <p class="channel" title="${video.author}">チャンネル: ${video.author}</p>
+                <p class="length">再生時間: ${formatSeconds(video.lengthSeconds)}</p>
+              `;
+              recommendedContainer.appendChild(div);
+            });
+          } else {
+            recommendedContainer.innerHTML = '<p>類似動画はありません。</p>';
+          }
         })
         .catch(() => {
           window.location.href = './nullvideo/';
         });
+    }
+
+    function formatSeconds(s) {
+      if (!s || s <= 0) return "0:00";
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return `${m}:${sec.toString().padStart(2, '0')}`;
     }
   </script>
 </body>
