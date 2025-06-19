@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>YouTube風 検索ページ</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f9f9f9;
+      padding: 2em;
+    }
+    h1 {
+      text-align: center;
+    }
+    #searchBox {
+      width: 80%;
+      max-width: 500px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 15px;
+      font-size: 16px;
+    }
+    .video-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5em;
+      margin-top: 2em;
+    }
+    .video-item {
+      background: white;
+      padding: 1em;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      cursor: pointer;
+      display: flex;
+      flex-direction: row;
+      gap: 1em;
+    }
+    .video-item:hover {
+      background: #f0f0f0;
+    }
+    .thumb {
+      width: 160px;
+      height: auto;
+      border-radius: 6px;
+    }
+    .video-info {
+      flex: 1;
+    }
+    .video-info h3 {
+      margin: 0.2em 0;
+      font-size: 18px;
+    }
+    .video-info p {
+      margin: 0.2em 0;
+      font-size: 14px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>YouTube風 検索ページ</h1>
+  <div style="text-align: center;">
+    <input type="text" id="searchBox" placeholder="キーワードまたはYouTubeリンク" />
+    <button onclick="search()">検索</button>
+  </div>
+
+  <div class="video-list" id="results"></div>
+
+  <script>
+    async function search() {
+      const query = document.getElementById('searchBox').value.trim();
+      const resultContainer = document.getElementById('results');
+      resultContainer.innerHTML = '';
+
+      if (!query) return;
+
+      const videoID = getYoutubeID(query);
+      if (videoID) {
+        try {
+          const check = await fetch(`https://yewtu.be/api/v1/videos/${videoID}`);
+          if (!check.ok) throw new Error('動画なし');
+          window.location.href = `player.html?=${videoID}`;
+          return;
+        } catch {
+          window.location.href = 'nullvideo/';
+          return;
+        }
+      }
+
+      const apiURL = `https://yewtu.be/api/v1/search?q=${encodeURIComponent(query)}`;
+      try {
+        const res = await fetch(apiURL);
+        const json = await res.json();
+
+        if (!Array.isArray(json)) {
+          resultContainer.innerHTML = `<p>動画情報の取得に失敗しました。</p>`;
+          return;
+        }
+
+        for (const video of json.slice(0, 10)) {
+          if (video.type !== 'video') continue;
+
+          const el = document.createElement('div');
+          el.className = 'video-item';
+          el.onclick = () => {
+            window.location.href = `player.html?=${video.videoId}`;
+          };
+          el.innerHTML = `
+            <img class="thumb" src="${video.thumbnail}" alt="thumbnail" />
+            <div class="video-info">
+              <h3>${video.title}</h3>
+              <p>チャンネル: ${video.author}</p>
+              <p>再生: ${video.viewCount?.toLocaleString() ?? '?'} | 👍 ${video.likeCount ?? '?'}</p>
+              <p>${video.description?.slice(0, 100) ?? '（説明なし）'}…</p>
+            </div>
+          `;
+          resultContainer.appendChild(el);
+        }
+      } catch {
+        resultContainer.innerHTML = `<p>動画情報の取得に失敗しました。</p>`;
+      }
+    }
+
+    function getYoutubeID(url) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.hostname.includes('youtube.com')) {
+          return parsed.searchParams.get('v');
+        } else if (parsed.hostname === 'youtu.be') {
+          return parsed.pathname.slice(1);
+        }
+      } catch {
+        if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+      }
+      return null;
+    }
+  </script>
+</body>
+</html>
