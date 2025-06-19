@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>YouTube動画プレイヤー</title>
+  <style>
+    body {
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 2em;
+    }
+    iframe {
+      width: 90%;
+      max-width: 720px;
+      height: 405px;
+      border: none;
+      border-radius: 8px;
+      margin-top: 2em;
+    }
+  </style>
+</head>
+<body>
+  <h1>YouTube動画プレイヤー</h1>
+  <p id="status">動画を読み込み中...</p>
+  <iframe id="ytPlayer" allowfullscreen></iframe>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const videoID = params.get('') || params.get('v') || params.get('id');
+
+    const player = document.getElementById('ytPlayer');
+    const status = document.getElementById('status');
+    const storageKey = `ytpos_${videoID}`;
+
+    if (!videoID) {
+      status.innerText = '動画IDが指定されていません。';
+      player.style.display = 'none';
+    } else {
+      fetch(`https://yewtu.be/api/v1/videos/${videoID}`)
+        .then(res => {
+          if (!res.ok) throw new Error('動画なし');
+          return res.json();
+        })
+        .then(data => {
+          status.innerText = `動画ID: ${videoID}`;
+          const savedSeconds = localStorage.getItem(storageKey) || 0;
+          const embedURL = `https://yewtu.be/embed/${videoID}?start=${savedSeconds}`;
+          player.src = embedURL;
+
+          // 5秒ごとに再生位置を保存（簡易版）
+          setInterval(() => {
+            // ここはiframe内の再生時間は直接取得不可なのでURLパラメータで管理
+            // より高度にするならYouTube IFrame APIの導入が必要
+            const currentStart = parseInt(new URL(player.src).searchParams.get('start') || '0');
+            localStorage.setItem(storageKey, currentStart);
+          }, 5000);
+        })
+        .catch(() => {
+          window.location.href = './nullvideo/';
+        });
+    }
+  </script>
+</body>
+</html>
